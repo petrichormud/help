@@ -23,3 +23,7 @@ slugs of files related to this one.
 
 Create a `[slug].md` file at `data/help`, i.e. `data/help/movement.md`.
 This can be CommonMark compliant but should **not** contain any front matter.
+
+## Examples
+
+Examples can be found at `data/examples`
