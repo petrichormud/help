@@ -1,0 +1,4 @@
+author = "test"
+title = "Two"
+sub = "A Second Test Helpfile"
+related = ["test"]

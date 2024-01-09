@@ -1,2 +1,4 @@
 author = "test"
+title = "Example"
+sub = "An example help file"
 related = []

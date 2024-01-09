@@ -1,2 +1,4 @@
 author = "test"
-related = []
+title = "Test"
+sub = "A Test Helpfile"
+related = ["two"]

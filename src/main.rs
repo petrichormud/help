@@ -19,14 +19,26 @@ async fn main() -> anyhow::Result<()> {
     let pool =
         sqlx::MySqlPool::connect("mysql://root:pass@localhost:3306/test?parseTime=true").await?;
 
+    if let Err(err) = sqlx::query!("DELETE FROM help_related;")
+        .execute(&pool)
+        .await
+    {
+        panic!("{:?}", err)
+    }
+
     if let Err(err) = sqlx::query!("DELETE FROM help;").execute(&pool).await {
         panic!("{:?}", err)
     }
 
-    for (_, doc) in read_help(&pool, "data", &get_slugs("data/help").await).await {
+    let help = read_help(&pool, "data", &get_slugs("data/help").await).await;
+    let docs = help.values();
+
+    for doc in docs {
         if let Err(err) = sqlx::query!(
-            "INSERT INTO help (slug, pid, raw, html) VALUES (?, ?, ?, ?);",
+            "INSERT INTO help (slug, title, sub, pid, raw, html) VALUES (?, ?, ?, ?, ?, ?);",
             doc.slug,
+            doc.title,
+            doc.sub,
             doc.pid,
             doc.raw,
             doc.html
@@ -35,6 +47,23 @@ async fn main() -> anyhow::Result<()> {
         .await
         {
             panic!("{:?}", err)
+        }
+
+        for related_slug in doc.related.iter() {
+            if let Some(related_doc) = help.get(related_slug) {
+                if let Err(err) = sqlx::query!(
+                    "INSERT INTO help_related (slug, related_title, related_sub, related) VALUES (?, ?, ?, ?);",
+                    &doc.slug,
+                    &related_doc.title,
+                    &related_doc.sub,
+                    related_slug,
+                )
+                .execute(&pool)
+                .await
+                {
+                    panic!("{:?}", err)
+                }
+            }
         }
     }
 
@@ -100,7 +129,18 @@ pub async fn read_help(
             Err(err) => panic!("Err getting author id: {:?}", err),
         };
 
-        map.insert(slug.to_string(), Help::new(slug, r.id, raw, html));
+        map.insert(
+            slug.to_string(),
+            Help::new(
+                slug,
+                &metadata.title,
+                &metadata.sub,
+                r.id,
+                raw,
+                html,
+                metadata.related,
+            ),
+        );
     }
 
     map
@@ -109,24 +149,44 @@ pub async fn read_help(
 #[derive(Debug)]
 pub struct Help {
     slug: String,
+    title: String,
+    sub: String,
     pid: i64,
     raw: String,
     html: String,
+    related: Vec<String>,
 }
 
 impl Help {
-    pub fn new(slug: &str, pid: i64, raw: String, html: String) -> Self {
+    pub fn new(
+        slug: &str,
+        title: &str,
+        sub: &str,
+        pid: i64,
+        raw: String,
+        html: String,
+        related: Vec<String>,
+    ) -> Self {
         Help {
             slug: slug.to_string(),
+            title: title.to_string(),
+            sub: sub.to_string(),
             pid,
             raw,
             html,
+            related,
         }
+    }
+
+    pub fn add_related(&mut self, slug: &str) {
+        self.related.push(slug.to_string());
     }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Metadata {
     pub author: String,
+    pub title: String,
+    pub sub: String,
     pub related: Vec<String>,
 }

@@ -13,11 +13,27 @@ Choose a unique slug. For example, "movement", "run", et cetera.
 
 Create a metadata file at `data/metadata`, i.e. `data/metadata/movement.toml`.
 
-This metadata file must contain an `author` key, i.e. `author = "test"`. This must
-be the username of an existing player.
+#### Required Keys
 
-A `related` key, like `related = ["run"]`. The `related` field is a list of
-slugs of files related to this one.
+`author`:
+The helpfile's author. Must be the valid username of an existing player. That
+player is not required to have the correct permissions to be marked as an author,
+since these helpfiles are already controlled via Git.
+
+`title`:
+The title of the help file. Completely appropriate for it to just be
+the slug titleized, i.e. "Movement"
+
+`sub`:
+The subtitle for the help file, to make it more easily readable in link form.
+Include disambiguation as much as possible by including `(Command)` for direct
+command help files. There isn't an exhaustive list of these currently, just
+try to be clear.
+
+`related`:
+A list of slugs of related files. Can (and probably should in most cases)
+be two-directional. The destination help file must exist at the slug or
+creating the help files will fail.
 
 ### Write Your Markdown
 
