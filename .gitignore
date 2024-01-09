@@ -1,0 +1,6 @@
+# built code
+/target
+
+# env files
+.env
+.env.*
