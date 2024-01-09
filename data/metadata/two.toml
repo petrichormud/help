@@ -1,4 +1,6 @@
 author = "test"
 title = "Two"
 sub = "A Second Test Helpfile"
+category = "Test"
+tags = ["test"]
 related = ["test"]

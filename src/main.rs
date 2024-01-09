@@ -3,8 +3,6 @@ use serde_derive::Deserialize;
 
 use std::fs;
 
-mod util;
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
@@ -35,10 +33,11 @@ async fn main() -> anyhow::Result<()> {
 
     for doc in docs {
         if let Err(err) = sqlx::query!(
-            "INSERT INTO help (slug, title, sub, pid, raw, html) VALUES (?, ?, ?, ?, ?, ?);",
+            "INSERT INTO help (slug, title, sub, category, pid, raw, html) VALUES (?, ?, ?, ?, ?, ?, ?);",
             doc.slug,
             doc.title,
             doc.sub,
+            doc.category,
             doc.pid,
             doc.raw,
             doc.html
@@ -52,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         for related_slug in doc.related.iter() {
             if let Some(related_doc) = help.get(related_slug) {
                 if let Err(err) = sqlx::query!(
-                    "INSERT INTO help_related (slug, related_title, related_sub, related) VALUES (?, ?, ?, ?);",
+                    "INSERT INTO help_related (slug, related_title, related_sub, related_slug) VALUES (?, ?, ?, ?);",
                     &doc.slug,
                     &related_doc.title,
                     &related_doc.sub,
@@ -65,12 +64,25 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+
+        for tag in doc.tags.iter() {
+            if let Err(err) = sqlx::query!(
+                "INSERT INTO help_tags (slug, tag) VALUES (?, ?);",
+                &doc.slug,
+                tag,
+            )
+            .execute(&pool)
+            .await
+            {
+                panic!("{:?}", err)
+            }
+        }
     }
 
     Ok(())
 }
 
-pub async fn get_slugs(path: &str) -> Vec<String> {
+async fn get_slugs(path: &str) -> Vec<String> {
     let mut slugs: Vec<String> = vec![];
 
     if let Ok(files) = fs::read_dir(path) {
@@ -84,7 +96,7 @@ pub async fn get_slugs(path: &str) -> Vec<String> {
     slugs
 }
 
-pub fn get_slug(file: fs::DirEntry) -> Option<String> {
+fn get_slug(file: fs::DirEntry) -> Option<String> {
     file.path()
         .with_extension("")
         .file_name()?
@@ -92,7 +104,7 @@ pub fn get_slug(file: fs::DirEntry) -> Option<String> {
         .map(|s| s.to_owned())
 }
 
-pub async fn read_help(
+async fn read_help(
     pool: &sqlx::Pool<sqlx::MySql>,
     dir: &str,
     slugs: &[String],
@@ -129,64 +141,123 @@ pub async fn read_help(
             Err(err) => panic!("Err getting author id: {:?}", err),
         };
 
-        map.insert(
-            slug.to_string(),
-            Help::new(
-                slug,
-                &metadata.title,
-                &metadata.sub,
-                r.id,
-                raw,
-                html,
-                metadata.related,
-            ),
-        );
+        let help = Help::builder()
+            .slug(slug)
+            .title(&metadata.title)
+            .sub(&metadata.sub)
+            .category(&metadata.category)
+            .pid(r.id)
+            .raw(&raw)
+            .html(&html)
+            .tags(metadata.tags)
+            .related(metadata.related)
+            .build();
+
+        map.insert(slug.to_string(), help);
     }
 
     map
 }
 
-#[derive(Debug)]
-pub struct Help {
+#[derive(Default)]
+pub struct HelpBuilder {
     slug: String,
     title: String,
     sub: String,
+    category: String,
     pid: i64,
     raw: String,
     html: String,
+    tags: Vec<String>,
+    related: Vec<String>,
+}
+
+impl HelpBuilder {
+    fn slug(mut self, slug: &str) -> Self {
+        self.slug = slug.to_owned();
+        self
+    }
+
+    fn title(mut self, title: &str) -> Self {
+        self.title = title.to_owned();
+        self
+    }
+
+    fn sub(mut self, sub: &str) -> Self {
+        self.sub = sub.to_owned();
+        self
+    }
+
+    fn category(mut self, category: &str) -> Self {
+        self.category = category.to_owned();
+        self
+    }
+
+    fn pid(mut self, pid: i64) -> Self {
+        self.pid = pid;
+        self
+    }
+
+    fn raw(mut self, raw: &str) -> Self {
+        self.raw = raw.to_owned();
+        self
+    }
+
+    fn html(mut self, html: &str) -> Self {
+        self.html = html.to_owned();
+        self
+    }
+
+    fn tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    fn related(mut self, related: Vec<String>) -> Self {
+        self.related = related;
+        self
+    }
+
+    fn build(self) -> Help {
+        Help {
+            slug: self.slug,
+            title: self.title,
+            sub: self.sub,
+            category: self.category,
+            pid: self.pid,
+            raw: self.raw,
+            html: self.html,
+            tags: self.tags,
+            related: self.related,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Help {
+    slug: String,
+    title: String,
+    sub: String,
+    category: String,
+    pid: i64,
+    raw: String,
+    html: String,
+    tags: Vec<String>,
     related: Vec<String>,
 }
 
 impl Help {
-    pub fn new(
-        slug: &str,
-        title: &str,
-        sub: &str,
-        pid: i64,
-        raw: String,
-        html: String,
-        related: Vec<String>,
-    ) -> Self {
-        Help {
-            slug: slug.to_string(),
-            title: title.to_string(),
-            sub: sub.to_string(),
-            pid,
-            raw,
-            html,
-            related,
-        }
-    }
-
-    pub fn add_related(&mut self, slug: &str) {
-        self.related.push(slug.to_string());
+    fn builder() -> HelpBuilder {
+        HelpBuilder::default()
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Metadata {
-    pub author: String,
-    pub title: String,
-    pub sub: String,
-    pub related: Vec<String>,
+struct Metadata {
+    author: String,
+    title: String,
+    sub: String,
+    category: String,
+    tags: Vec<String>,
+    related: Vec<String>,
 }

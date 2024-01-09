@@ -30,6 +30,18 @@ Include disambiguation as much as possible by including `(Command)` for direct
 command help files. There isn't an exhaustive list of these currently, just
 try to be clear.
 
+`category`:
+The help file's category. This is just a grouping to help keep related files together.
+There isn't an official list of categories (yet), but some guidelines are:
+
+1. Make sure the Category name is exact. i.e., "Basic Commands" and "Basic Command"
+   will be treated by the system as different categories.
+2. Titleize the Category name. "Basic Commands" instead of "basic commands".
+
+`tags`:
+A space to put other properties, like `command`, `character`, `lore`, et cetera.
+These are further used to search for and group related help files in the system.
+
 `related`:
 A list of slugs of related files. Can (and probably should in most cases)
 be two-directional. The destination help file must exist at the slug or

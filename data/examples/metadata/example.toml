@@ -1,4 +1,6 @@
 author = "test"
 title = "Example"
 sub = "An example help file"
+category = "Examples"
+tags = ["example"]
 related = []
